@@ -3,8 +3,8 @@ from pathlib import Path
 import pandas as pd
 
 # Настройка абсолютного пути к БД
-PROJECT_ROOT = Path(__file__).resolve().parent.parent # абсолютный путь к корню проекта
-DB_PATH = PROJECT_ROOT / 'data' / 'tezgo_telemetry.db' # абсолютный путь к БД
+PROJECT_ROOT = Path(__file__).resolve().parent.parent  # абсолютный путь к корню проекта
+DB_PATH = PROJECT_ROOT / 'data' / 'tezgo_telemetry.db'  # абсолютный путь к БД
 
 # абсолютный путь к файлам SQL
 SQL_PATH = PROJECT_ROOT / 'sql'
@@ -16,6 +16,7 @@ if not DB_PATH.exists():
 # Подключение к БД
 con = sqlite3.connect(DB_PATH)
 
+
 def query(sql: str) -> pd.DataFrame:
     '''
     Выполнить SQL и вернуть DataFrame
@@ -24,7 +25,6 @@ def query(sql: str) -> pd.DataFrame:
     '''
     return pd.read_sql_query(sql, con)
 
+
 def read_sql_file(file_name: str) -> str:
     return (SQL_PATH / file_name).read_text(encoding='utf-8')
-
-
