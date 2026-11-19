@@ -6,6 +6,9 @@ import pandas as pd
 PROJECT_ROOT = Path(__file__).resolve().parent.parent # абсолютный путь к корню проекта
 DB_PATH = PROJECT_ROOT / 'data' / 'tezgo_telemetry.db' # абсолютный путь к БД
 
+# абсолютный путь к файлам SQL
+SQL_PATH = PROJECT_ROOT / 'sql'
+
 # Проверка на наличие БД вместо ее создания
 if not DB_PATH.exists():
     raise FileNotFoundError(f'База {DB_PATH} не найдена!')
@@ -21,7 +24,7 @@ def query(sql: str) -> pd.DataFrame:
     '''
     return pd.read_sql_query(sql, con)
 
-test = query(
-    'SELECT * FROM users;'
-)
-print(test)
+def read_sql_file(file_name: str) -> str:
+    return (SQL_PATH / file_name).read_text(encoding='utf-8')
+
+
