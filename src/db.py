@@ -16,6 +16,9 @@ if not DB_PATH.exists():
 # Подключение к БД
 con = sqlite3.connect(DB_PATH)
 
+# Добавление максимального количества строк, чтобы pandas не резал данные
+pd.set_option('display.max_rows', 200)
+
 
 def query(sql: str) -> pd.DataFrame:
     '''
