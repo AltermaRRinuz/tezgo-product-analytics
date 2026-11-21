@@ -257,3 +257,34 @@ SELECT
         AS orders_price_uzs_null,
       (SELECT ROUND(AVG(price_uzs IS NULL) * 100, 1) FROM orders WHERE status = 'completed')
         AS completed_price_uzs_null;
+
+-- 1.3 Проверка связности таблиц
+
+-- использую LEFT JOIN, так как он сохраняет все строки левой таблицы,
+-- если пары нет - будет NULL
+SELECT
+      -- заказы без сессии:
+      (SELECT COUNT(*)
+      FROM orders o
+      LEFT JOIN sessions s ON s.session_id = o.session_id
+      WHERE s.session_id IS NULL) AS orders_without_sessions,
+      -- сессии без пользователя:
+      (SELECT COUNT(*)
+      FROM sessions s
+      LEFT JOIN users u ON u.user_id = s.user_id
+      WHERE u.user_id IS NULL) AS sessions_without_user,
+      -- события без сессии:
+      (SELECT COUNT(*)
+      FROM events e
+      LEFT JOIN sessions s ON s.session_id = e.session_id
+      WHERE s.session_id IS NULL) AS events_without_sessions,
+      -- просмотры экранов без сессии:
+      (SELECT COUNT(*)
+      FROM screen_views sv
+      LEFT JOIN sessions s ON s.session_id = sv.session_id
+      WHERE s.session_id IS NULL) AS screen_views_without_sessions,
+      -- пользователи без устройств
+      (SELECT COUNT(*)
+      FROM users u
+      LEFT JOIN devices d ON d.user_id = u.user_id
+      WHERE d.user_id IS NULL) AS users_without_devices;
