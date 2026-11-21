@@ -315,3 +315,26 @@ FROM (
       ) AS d
 GROUP BY d.event_name
 ORDER BY extra_rows DESC;
+
+-- 1.5 Время телефона против времени сервера
+
+-- julianday() - превращает дату в число дней
+SELECT device_id,
+       AVG(julianday(server_ts) - julianday(client_ts)) AS avg_diff_days
+FROM events
+GROUP BY device_id;
+
+WITH device_diff AS (
+      SELECT device_id,
+             AVG(julianday(server_ts) - julianday(client_ts)) AS avg_diff_days
+      FROM events
+      GROUP BY device_id
+)
+SELECT COUNT(*) AS bugged_devices,
+       ROUND(100.0 * COUNT(*) / (SELECT COUNT(*) FROM device_diff), 2) AS bad_pct,
+       ROUND(MIN(ABS(avg_diff_days)), 0) AS min_days,
+       ROUND(MAX(ABS(avg_diff_days)), 0) AS max_days,
+       SUM(avg_diff_days < 0)            AS clock_faster,
+       SUM(avg_diff_days > 0)            AS clock_slower
+FROM device_diff
+WHERE ABS(avg_diff_days) > 1;
