@@ -31,3 +31,11 @@ def query(sql: str) -> pd.DataFrame:
 
 def read_sql_file(file_name: str) -> str:
     return (SQL_PATH / file_name).read_text(encoding='utf-8')
+
+def execute(sql: str) -> None:
+    '''
+    Выполнить SQL запрос без результата (CREATE, DROP, INDEX, etc.)
+    :param sql: str
+    :return: None
+    '''
+    con.executescript(sql)

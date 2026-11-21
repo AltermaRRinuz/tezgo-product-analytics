@@ -376,3 +376,115 @@ JOIN devices d ON d.device_id = s.device_id
 GROUP BY s.user_id, u.acquisition_channel, d.device_model
 ORDER BY sessions_cnt DESC
 LIMIT 10;
+
+-- 1.8 Очистка данных
+
+-- 1. Пользователи: без тестировщиков, города нормализованы, 1900 -> NULL, время UTC+5
+DROP TABLE IF EXISTS temp.users_c;
+CREATE TEMP TABLE users_c AS
+SELECT user_id,
+       datetime(registered_at, '+5 hours') AS registered_at,
+       CASE
+            WHEN city IN ('Ташкент', 'Tashkent', 'г. Ташкент', 'ташкент') THEN 'Ташкент'
+            WHEN city IN ('Самарканд', 'Samarkand')                       THEN 'Самарканд'
+            WHEN city IN ('Фергана', 'Fergana')                           THEN 'Фергана'
+            WHEN city IN ('Андижан', 'Andijan')                           THEN 'Андижан'
+            WHEN city IN ('Бухара', 'Bukhara')                            THEN 'Бухара'
+            ELSE city
+       END AS city,
+       CASE
+            WHEN birth_year BETWEEN 1930 AND 2012 THEN birth_year
+       END AS birth_year,
+       acquisition_channel AS channel
+FROM users
+WHERE acquisition_channel <> 'internal_qa';
+
+-- 2. Устройства только "чистых" пользователей
+DROP TABLE IF EXISTS temp.devices_c;
+CREATE TEMP TABLE devices_c AS
+SELECT device_id, d.user_id, d.platform, d.device_model, d.os_version,
+       datetime(d.first_seen_at, '+5 hours') AS first_seen_at
+FROM devices d
+WHERE d.user_id IN (SELECT user_id FROM users_c);
+
+-- 3. Сессии: время UTC+5, оборванные (ended_at = NULL) оставляю
+DROP TABLE IF EXISTS temp.sessions_c;
+CREATE TEMP TABLE sessions_c AS
+SELECT s.session_id, s.user_id, s.device_id,
+       datetime(s.started_at, '+5 hours') AS started_at,
+       datetime(s.ended_at, '+5 hours') AS ended_at,
+       s.app_version, s.network_type
+FROM sessions s
+WHERE s.user_id IN (SELECT user_id FROM users_c);
+
+-- создаю индекс, то есть "оглавление" для быстрого поиска по колонке `session_id`
+ CREATE INDEX temp.ix_sessions_c_session ON sessions_c(session_id);
+
+ -- 4. Просмотры экранов: невозможная длительность -> NULL, строки сохраняю
+ DROP TABLE IF EXISTS temp.screen_views_c;
+ CREATE TEMP TABLE screen_views_c AS
+ SELECT sv.view_id, sv.session_id, sv.screen_name,
+        datetime(sv.entered_at, '+5 hours') AS entered_at,
+        CASE
+            WHEN sv.duration_ms BETWEEN 0 AND 86400000 THEN sv.duration_ms
+        END AS duration_ms
+ FROM screen_views sv
+ WHERE sv.session_id IN (SELECT session_id FROM sessions_c);
+ CREATE INDEX temp.ix_screen_views_c_session ON screen_views_c(session_id);
+
+ -- 5. События: без дублей, время сервера (не телефона), UTC+5
+ DROP TABLE IF EXISTS temp.events_c;
+ CREATE TEMP TABLE events_c AS
+ SELECT event_id, session_id, user_id, device_id,
+        datetime(server_ts, '+5 hours') AS event_ts,
+        event_name, screen_name, event_params
+ FROM(
+      SELECT e.*,
+             ROW_NUMBER() OVER (
+                  PARTITION BY e.session_id, e.event_name, e.client_ts,
+                  COALESCE(e.event_params, '')
+                  ORDER BY e.server_ts, e.event_id
+             ) AS rn
+      FROM events e
+ ) AS numbered
+ WHERE rn = 1 AND session_id IN (SELECT session_id FROM sessions_c);
+ CREATE INDEX temp.ix_events_c_session ON events_c(session_id);
+
+ -- 6. Заказы "чистых" сессий, UTC+5
+ DROP TABLE IF EXISTS temp.orders_c;
+ CREATE TEMP TABLE orders_c AS
+ SELECT o.order_id, o.user_id, o.session_id, o.service, o.tariff,
+       datetime(o.created_at, '+5 hours') AS created_at,
+       o.status, o.price_uzs, o.distance_km, o.wait_time_sec,
+       o.payment_method, o.promo_applied, o.rating
+FROM orders o
+WHERE o.session_id IN (SELECT session_id FROM sessions_c);
+
+-- 7. A/B-назначения без тестировщиков, UTC+5
+DROP TABLE IF EXISTS temp.ab_c;
+CREATE TEMP TABLE ab_c AS
+SELECT a.user_id, a.experiment, a.variant,
+       datetime(a.assigned_at, '+5 hours') AS assigned_at
+FROM ab_assignments a
+WHERE a.user_id IN (SELECT user_id FROM users_c);
+
+-- Вывод таблицы сравнения после очистки данных
+SELECT 'users'                    AS tbl,
+(SELECT COUNT(*) FROM users)      AS before_cnt,
+(SELECT COUNT(*) FROM users_c)    AS after_cnt
+UNION ALL
+SELECT 'sessions',
+(SELECT COUNT(*) FROM sessions),
+(SELECT COUNT(*) FROM sessions_c)
+UNION ALL
+SELECT 'events',
+(SELECT COUNT(*) FROM events),
+(SELECT COUNT(*) FROM events_c)
+UNION ALL
+SELECT 'orders',
+(SELECT COUNT(*) FROM orders),
+(SELECT COUNT(*) FROM orders_c)
+UNION ALL
+SELECT 'screen_views',
+(SELECT COUNT(*) FROM screen_views),
+(SELECT COUNT(*) FROM screen_views_c)
