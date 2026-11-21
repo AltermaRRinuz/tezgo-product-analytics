@@ -288,3 +288,30 @@ SELECT
       FROM users u
       LEFT JOIN devices d ON d.user_id = u.user_id
       WHERE d.user_id IS NULL) AS users_without_devices;
+
+-- 1.4 Дубликаты событий
+-- поиск по группам событий
+SELECT
+       COUNT(*) AS dup_groups,
+       SUM(n - 1) AS extra_rows,
+       ROUND(100.0 * SUM(n - 1) / (SELECT COUNT(*) FROM events), 2) AS extra_pct
+FROM (
+      SELECT event_name, COUNT(*) AS n
+      FROM events
+      GROUP BY session_id, event_name, client_ts, COALESCE(event_params, '')
+      HAVING COUNT(*) > 1
+      )
+
+-- поиск и группировка по именам событий
+SELECT d.event_name,
+       COUNT(*) AS dup_groups,
+       SUM(n - 1) AS extra_rows,
+       ROUND(100.0 * SUM(n - 1) / (SELECT COUNT(*) FROM events), 2) AS extra_pct
+FROM (
+      SELECT event_name, COUNT(*) AS n
+      FROM events
+      GROUP BY session_id, event_name, client_ts, COALESCE(event_params, '')
+      HAVING COUNT(*) > 1
+      ) AS d
+GROUP BY d.event_name
+ORDER BY extra_rows DESC;
