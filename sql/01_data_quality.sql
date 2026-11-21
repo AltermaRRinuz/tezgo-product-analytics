@@ -345,3 +345,34 @@ SELECT
       SUM(duration_ms > 86400000)   AS over_24h,
       MAX(duration_ms) / 3600000.0    AS max_hours
 FROM screen_views;
+
+-- 1.7 Справочные поля и аномальные пользователи
+
+-- 1.7.a Справочные поля: город, год рождения, канал привлечения
+SELECT 'city' AS field, city AS value, COUNT(*) AS users_cnt
+FROM users
+GROUP BY city
+UNION ALL
+SELECT 'channel', acquisition_channel, COUNT(*)
+FROM users
+GROUP BY acquisition_channel
+ORDER BY field, users_cnt DESC;
+
+SELECT birth_year, COUNT(*) as users_cnt
+FROM users
+WHERE birth_year < 1930 OR birth_year > 2012
+GROUP BY birth_year;
+
+-- 1.7.b Аномальные пользователи
+SELECT s.user_id, u.acquisition_channel, d.device_model,
+       COUNT(*) AS sessions_cnt,
+       COUNT(DISTINCT date(s.started_at, '+5 hours')) AS active_days,
+       (SELECT ROUND(AVG(o.status = 'cancelled_user') * 100, 1)
+       FROM orders o
+       WHERE o.user_id = s.user_id) AS cancelled_pct
+FROM sessions s
+JOIN users u ON u.user_id = s.user_id
+JOIN devices d ON d.device_id = s.device_id
+GROUP BY s.user_id, u.acquisition_channel, d.device_model
+ORDER BY sessions_cnt DESC
+LIMIT 10;
