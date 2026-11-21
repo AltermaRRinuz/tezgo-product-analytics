@@ -338,3 +338,10 @@ SELECT COUNT(*) AS bugged_devices,
        SUM(avg_diff_days > 0)            AS clock_slower
 FROM device_diff
 WHERE ABS(avg_diff_days) > 1;
+
+-- 1.6 Невозможная длительность экранов
+SELECT
+      SUM(duration_ms < 0)          AS negative,
+      SUM(duration_ms > 86400000)   AS over_24h,
+      MAX(duration_ms) / 3600000.0    AS max_hours
+FROM screen_views;
