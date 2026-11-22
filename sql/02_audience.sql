@@ -18,3 +18,15 @@ FROM days d
 JOIN ud ON ud.day BETWEEN date(d.day, '-29 day') AND d.day
 GROUP BY d.day
 ORDER BY d.day
+
+-- 2.2 Когда пользуются приложением
+SELECT service,
+       -- CAST - преобразование типа
+       -- strftime('%w', ...) - возвращает день недели в INT, но 0 = воскресенье
+       -- (+ 6) % 7 - сдвигает так, чтобы 0 - был понедельником
+       -- strftime('%H', ...) - возвращает час суток
+       (CAST(strftime('%w', created_at) AS INTEGER) + 6) % 7 AS dow,
+       CAST(strftime('%H', created_at) AS INTEGER)           AS hour,
+       COUNT(*)                                              AS orders_cnt
+FROM orders_c
+GROUP BY service, dow, hour;
